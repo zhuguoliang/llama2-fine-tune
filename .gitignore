@@ -156,3 +156,5 @@ cython_debug/
 *results
 *dpo_results
 *merged_peft
+
+wandb/

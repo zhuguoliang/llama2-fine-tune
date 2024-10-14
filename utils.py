@@ -11,6 +11,15 @@ def find_all_linear_names(model):
 
     return list(lora_module_names)
 
+def find_all_linear_names_nobnb(model):
+    cls = torch.nn.Linear
+    lora_module_names = set()
+    for name, module in model.named_modules():
+        if isinstance(module, cls):
+            names = name.split('.')
+            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+
+    return list(lora_module_names)
 
 def print_trainable_parameters(model):
   """

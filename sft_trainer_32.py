@@ -5,48 +5,34 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments,
 from datasets import load_dataset
 from trl import SFTTrainer
 from peft import AutoPeftModelForCausalLM, LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from utils import find_all_linear_names, print_trainable_parameters
+from utils import find_all_linear_names_nobnb, print_trainable_parameters
 os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 import wandb
 wandb.init(mode="disabled")
 
 output_dir="./results"
-# model_name ="NousResearch/Llama-2-7b-hf"
 model_name ="/workspace/hongzhu/model_dir/NousResearch/Llama-2-7b-hf"
-
-# dataset = load_dataset("json", data_files="conversations.json",split="train")
 
 dataset_name = "/workspace/hongzhu/dataset_dir/openassistant-guanaco"
 dataset = load_dataset(dataset_name, split="train")
 
-
-bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.bfloat16,
-)
-
-base_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16,quantization_config=bnb_config)
+# load model in f32 precision
+base_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float32)
 base_model.config.use_cache = False
-base_model = prepare_model_for_kbit_training(base_model)
 
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 tokenizer.pad_token = tokenizer.eos_token
 tokenizer.padding_side = "right"  # Fix weird overflow issue with fp16 training
 
-
-tmodule = find_all_linear_names(base_model)
-print("printing modules in base module: \n")
+tmodule = find_all_linear_names_nobnb(base_model)
 print(tmodule)
-print(base_model.named_modules())
-os.quit()
-
 
 # Change the LORA hyperparameters accordingly to fit your use case
 peft_config = LoraConfig(
     r=128,
     lora_alpha=16,
-    target_modules=find_all_linear_names(base_model),
+    # target_modules=find_all_linear_names(base_model),
+    target_modules=tmodule,
     lora_dropout=0.05,
     bias="none",
     task_type="CAUSAL_LM",
@@ -70,7 +56,8 @@ training_args = TrainingArguments(
     max_grad_norm= 0.3,
     num_train_epochs=1, 
     learning_rate=2e-4,
-    bf16=True,
+    #remove bf16 true config
+    # bf16=True,
     save_total_limit=3,
     logging_steps=10,
     output_dir=output_dir,
